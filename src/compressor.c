@@ -18,7 +18,7 @@ PakCompressor pakCompressorInit(char* pakFileName, uint8_t compressionLevel) {
     compressor.compressor = libdeflate_alloc_compressor(compressionLevel);
     compressor.header = malloc(sizeof(ElementHeader) * PAK_COMPRESSOR_MEMORY_CHUNK_SIZE);
     compressor.headerSize = PAK_COMPRESSOR_MEMORY_CHUNK_SIZE;
-    compressor.headerCount = 1;
+    compressor.headerCount = 0;
     compressor.compressedDataPool = malloc(sizeof(uint8_t) * PAK_COMPRESSOR_MEMORY_CHUNK_SIZE);
     compressor.compressedDataPoolSize = PAK_COMPRESSOR_MEMORY_CHUNK_SIZE;
     return compressor;
