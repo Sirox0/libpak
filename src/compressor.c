@@ -34,7 +34,7 @@ void pakCompressorAddData(PakCompressor compressor, char* name, void* data, size
         SHA1Final(header.nameHash, &ctx);
     }
     header.decompressedSize = size;
-    heafer.offset = ftell(compressor.file);
+    header.offset = ftell(compressor.file);
 
     // reallocate more memory in case current is not enough
     size_t maxCompressedSize = libdeflate_deflate_compress_bound(compressor.compressor, size);
