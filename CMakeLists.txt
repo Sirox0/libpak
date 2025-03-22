@@ -9,6 +9,7 @@ set(SOURCES
     ${CMAKE_CURRENT_LIST_DIR}/external/sha1/sha1.c
 
     ${CMAKE_CURRENT_LIST_DIR}/src/compressor.c
+    ${CMAKE_CURRENT_LIST_DIR}/src/decompressor.c
 )
 
 include_directories(include external/sha1)
