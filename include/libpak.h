@@ -6,6 +6,7 @@
 
 typedef struct {
     uint8_t nameHash[20]; // sha1 takes 160 bits
+    size_t offset; // number of bytes before the data of this element in the pak file
     size_t compressedSize;
     size_t decompressedSize;
 } ElementHeader;
