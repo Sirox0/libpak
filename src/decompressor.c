@@ -2,12 +2,11 @@
 #include <libdeflate.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
 
 void pakDecompress(char* pakFilePath) {
     FILE* file = fopen(pakFilePath, "rb");
     if (file == NULL) {
-        printf("failed to open pak file");
+        printf("failed to open pak file\n");
         exit(1);
     }
 
@@ -19,7 +18,7 @@ void pakDecompress(char* pakFilePath) {
     size_t headerSize = ftell(file) - headerOffset;
     fseek(file, headerOffset, SEEK_SET);
 
-    ElementHeader* header = (ElementHeader*)malloc(headerSize);
+    PakElementHeader* header = (PakElementHeader*)malloc(headerSize);
     fread(header, headerSize, 1, file);
 
     struct libdeflate_decompressor* decompressor = libdeflate_alloc_decompressor();
@@ -28,8 +27,8 @@ void pakDecompress(char* pakFilePath) {
     void* compressedData = malloc(PAK_MEMORY_CHUNK_SIZE);
     void* decompressedData = malloc(PAK_MEMORY_CHUNK_SIZE);
 
-    for (size_t i = 0; i < headerSize / sizeof(ElementHeader); i++) {
-        fseek(file, header[i].offset, SEEK_SET);
+    for (size_t i = 0; i < headerSize / sizeof(PakElementHeader); i++) {
+    fseek(file, header[i].offset, SEEK_SET);
 
         // make sure we have enough memory
         if (compressedDataSize < header[i].compressedSize) {

@@ -10,6 +10,7 @@ set(SOURCES
 
     ${CMAKE_CURRENT_LIST_DIR}/src/compressor.c
     ${CMAKE_CURRENT_LIST_DIR}/src/decompressor.c
+    ${CMAKE_CURRENT_LIST_DIR}/src/reader.c
 )
 
 find_package(libdeflate REQUIRED)

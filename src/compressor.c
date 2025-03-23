@@ -16,7 +16,7 @@ PakCompressor pakCompressorInit(char* pakFilePath, uint8_t compressionLevel) {
     fseek(compressor.file, sizeof(uint64_t), SEEK_SET);
 
     compressor.compressor = libdeflate_alloc_compressor(compressionLevel);
-    compressor.header = malloc(sizeof(ElementHeader) * PAK_ELEMENT_CHUNK_SIZE);
+    compressor.header = malloc(sizeof(PakElementHeader) * PAK_ELEMENT_CHUNK_SIZE);
     compressor.headerSize = PAK_ELEMENT_CHUNK_SIZE;
     compressor.headerCount = 0;
     compressor.compressedDataPool = malloc(PAK_MEMORY_CHUNK_SIZE);
@@ -25,7 +25,7 @@ PakCompressor pakCompressorInit(char* pakFilePath, uint8_t compressionLevel) {
 }
 
 void pakCompressorAddData(PakCompressor* compressor, char* name, void* data, size_t size) {
-    ElementHeader header = {};
+    PakElementHeader header = {};
     // hash the name
     {
         SHA1_CTX ctx;
@@ -56,7 +56,7 @@ void pakCompressorAddData(PakCompressor* compressor, char* name, void* data, siz
     // add the header to compressor header list
     if (compressor->headerCount == compressor->headerSize) {
         compressor->headerSize += PAK_ELEMENT_CHUNK_SIZE;
-        compressor->header = realloc(compressor->header, compressor->headerSize * sizeof(ElementHeader));
+        compressor->header = realloc(compressor->header, compressor->headerSize * sizeof(PakElementHeader));
     }
     compressor->header[compressor->headerCount] = header;
     compressor->headerCount++;
@@ -85,7 +85,7 @@ void pakCompressorAddFile(PakCompressor* compressor, char* path) {
 void pakCompressorFinish(PakCompressor* compressor) {
     uint64_t headerOffset = ftell(compressor->file);
 
-    fwrite(compressor->header, compressor->headerCount * sizeof(ElementHeader), 1, compressor->file);
+    fwrite(compressor->header, compressor->headerCount * sizeof(PakElementHeader), 1, compressor->file);
     
     fseek(compressor->file, 0, SEEK_SET);
     fwrite(&headerOffset, sizeof(uint64_t), 1, compressor->file);
