@@ -83,4 +83,5 @@ void pakReaderFree(PakReader* reader) {
     libdeflate_free_decompressor(reader->decompressor);
     free(reader->compressedDataPool);
     free(reader->header);
+    fclose(reader->file);
 }
