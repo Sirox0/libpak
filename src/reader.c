@@ -51,6 +51,7 @@ PakElementData pakReaderRead(PakReader* reader, char* name) {
     for (size_t i = 0; i < reader->headerCount; i++) {
         if (sha1HashEqual(nameHash, reader->header[i].nameHash)) {
             element = &reader->header[i];
+            break;
         }
     }
     if (element == NULL) {
