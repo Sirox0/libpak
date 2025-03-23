@@ -28,7 +28,7 @@ void pakDecompress(char* pakFilePath) {
     void* decompressedData = malloc(PAK_MEMORY_CHUNK_SIZE);
 
     for (size_t i = 0; i < headerSize / sizeof(PakElementHeader); i++) {
-    fseek(file, header[i].offset, SEEK_SET);
+        fseek(file, header[i].offset, SEEK_SET);
 
         // make sure we have enough memory
         if (compressedDataSize < header[i].compressedSize) {
