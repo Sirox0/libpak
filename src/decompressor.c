@@ -51,8 +51,8 @@ void pakDecompress(char* pakFilePath) {
             exit(1);
         }
 
-        char name[21] = "";
-        sprintf(name, "%.20lu", header[i].offset);
+        char name[40] = "";
+        for (uint32_t j = 0; j < 20; j++) snprintf(name + j * 2, 40 - j * 2, "%02x", header[i].nameHash[j]);
         FILE* outFile = fopen(name, "wb");
         if (outFile == NULL) {
             printf("failed to create file\n");
