@@ -66,4 +66,5 @@ void pakDecompress(char* pakFilePath) {
     free(decompressedData);
     free(compressedData);
     libdeflate_free_decompressor(decompressor);
+    fclose(file);
 }
