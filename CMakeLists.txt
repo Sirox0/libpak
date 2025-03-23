@@ -12,19 +12,13 @@ set(SOURCES
     ${CMAKE_CURRENT_LIST_DIR}/src/decompressor.c
 )
 
-include_directories(include external/sha1)
-
 find_package(libdeflate REQUIRED)
 
-if(PROJECT_IS_TOP_LEVEL)
-    option(BUILD_STATIC_LIBRARY "of set to on, static library is produced, shared library is produced otherwise" OFF)
-    if(BUILD_STATIC_LIBRARY)
-        add_library(pak STATIC ${SOURCES})
-    else()
-        add_library(pak SHARED ${SOURCES})
-    endif()
-    target_link_libraries(pak libdeflate::libdeflate_static)
+option(LIBPAK_STATIC_LIBRARY "of set to on, static library is produced, shared library is produced otherwise" OFF)
+if(LIBPAK_STATIC_LIBRARY)
+    add_library(pak STATIC ${SOURCES})
 else()
-    add_library(libpak::pak INTERFACE ${SOURCES})
-    target_link_libraries(libpak::pak libdeflate::libdeflate_static)
+    add_library(pak SHARED ${SOURCES})
 endif()
+target_link_libraries(pak libdeflate::libdeflate_static)
+target_include_directories(pak PUBLIC ${CMAKE_CURRENT_LIST_DIR}/include ${CMAKE_CURRENT_LIST_DIR}/external/sha1)

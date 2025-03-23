@@ -1,0 +1,15 @@
+cmake_minimum_required(VERSION 3.25)
+project(paktest LANGUAGES C VERSION 1.0)
+
+set(CMAKE_C_STANDARD 11)
+set(CMAKE_C_STANDARD_REQUIRED ON)
+
+include(${CMAKE_CURRENT_LIST_DIR}/../CMakeLists.txt)
+
+add_executable(paktest ${CMAKE_CURRENT_LIST_DIR}/paktest.c)
+target_link_libraries(paktest pak)
+
+file(COPY ${CMAKE_CURRENT_LIST_DIR}/a.txt DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
+file(COPY ${CMAKE_CURRENT_LIST_DIR}/b.txt DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
+file(COPY ${CMAKE_CURRENT_LIST_DIR}/c.txt DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
+
