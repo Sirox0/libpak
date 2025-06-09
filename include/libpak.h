@@ -14,7 +14,7 @@ typedef struct {
 } PakAllocator;
 
 typedef struct {
-    uint8_t nameHash[20]; // sha1 takes 160 bits
+    uint8_t nameHash[32]; // sha256 takes 256 bits
     uint64_t offset; // number of bytes before the data of this element in the pak file
     uint64_t compressedSize;
     uint64_t decompressedSize;

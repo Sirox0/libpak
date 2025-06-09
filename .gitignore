@@ -1,3 +1,4 @@
+include/libpakExport.h
 build
 test/build
 .vscode

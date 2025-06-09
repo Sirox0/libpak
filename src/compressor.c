@@ -1,5 +1,5 @@
 #include "libpak.h"
-#include <sha1.h>
+#include <sha256.h>
 #include <libdeflate.h>
 #include <stdlib.h>
 #include <string.h>
@@ -32,10 +32,11 @@ void pakCompressorAddData(PakCompressor* compressor, char* name, void* data, siz
     PakElementHeader header = {};
     // hash the name
     {
-        SHA1_CTX ctx;
-        SHA1Init(&ctx);
-        SHA1Update(&ctx, (unsigned char*)name, strlen(name));
-        SHA1Final(header.nameHash, &ctx);
+        struct sha256_buff ctx;
+        sha256_init(&ctx);
+        sha256_update(&ctx, name, strlen(name));
+        sha256_finalize(&ctx);
+        sha256_read(&ctx, header.nameHash);
     }
     header.decompressedSize = size;
     header.offset = ftell(compressor->file);

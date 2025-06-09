@@ -11,7 +11,7 @@ endif()
 
 set(SOURCES
     #hashing library
-    ${CMAKE_CURRENT_LIST_DIR}/external/sha1/sha1.c
+    ${CMAKE_CURRENT_LIST_DIR}/external/sha256/sha256.c
 
     ${CMAKE_CURRENT_LIST_DIR}/src/compressor.c
     ${CMAKE_CURRENT_LIST_DIR}/src/decompressor.c
@@ -28,7 +28,7 @@ else()
     add_library(pak SHARED ${SOURCES})
 endif()
 target_link_libraries(pak libdeflate::libdeflate_static)
-target_include_directories(pak PUBLIC ${CMAKE_CURRENT_LIST_DIR}/include ${CMAKE_CURRENT_LIST_DIR}/external/sha1)
+target_include_directories(pak PUBLIC ${CMAKE_CURRENT_LIST_DIR}/include ${CMAKE_CURRENT_LIST_DIR}/external/sha256)
 
 include(GenerateExportHeader)
 generate_export_header(pak EXPORT_FILE_NAME ${CMAKE_CURRENT_LIST_DIR}/include/libpakExport.h STATIC_DEFINE PAK_STATIC)

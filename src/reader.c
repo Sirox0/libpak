@@ -1,6 +1,6 @@
 #include "libpak.h"
 #include <libdeflate.h>
-#include <sha1.h>
+#include <sha256.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -35,7 +35,7 @@ PakReader pakReaderInit(char* pakFilePath, PakAllocator allocator) {
     return reader;
 }
 
-uint32_t sha1HashEqual(uint8_t* a, uint8_t* b) {
+uint32_t sha256HashEqual(uint8_t* a, uint8_t* b) {
     for (size_t i = 0; i < 20; i++) {
         if (a[i] != b[i]) return 0;
     }
@@ -43,17 +43,18 @@ uint32_t sha1HashEqual(uint8_t* a, uint8_t* b) {
 }
 
 PakElementData pakReaderRead(PakReader* reader, char* name) {
-    uint8_t nameHash[20] = {};
+    uint8_t nameHash[32] = {};
     {
-        SHA1_CTX ctx;
-        SHA1Init(&ctx);
-        SHA1Update(&ctx, (unsigned char*)name, strlen(name));
-        SHA1Final(nameHash, &ctx);
+        struct sha256_buff ctx;
+        sha256_init(&ctx);
+        sha256_update(&ctx, name, strlen(name));
+        sha256_finalize(&ctx);
+        sha256_read(&ctx, nameHash);
     }
 
     PakElementHeader* element = NULL;
     for (size_t i = 0; i < reader->headerCount; i++) {
-        if (sha1HashEqual(nameHash, reader->header[i].nameHash)) {
+        if (sha256HashEqual(nameHash, reader->header[i].nameHash)) {
             element = &reader->header[i];
             break;
         }
