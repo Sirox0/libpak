@@ -42,7 +42,7 @@ uint32_t sha256HashEqual(uint8_t* a, uint8_t* b) {
     return 1;
 }
 
-PakElementData pakReaderRead(PakReader* reader, char* name) {
+PakElementData pakReaderReadData(PakReader* reader, char* name) {
     uint8_t nameHash[32] = {};
     {
         struct sha256_buff ctx;
@@ -82,6 +82,10 @@ PakElementData pakReaderRead(PakReader* reader, char* name) {
         exit(1);
     }
     return ret;
+}
+
+PAK_EXPORT void pakReaderFreeData(PakReader* reader, PakElementData* data) {
+    reader->allocator.free(data);
 }
 
 void pakReaderFree(PakReader* reader) {

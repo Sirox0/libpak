@@ -12,8 +12,8 @@ int main() {
     pakDecompress("test.pak", (PakAllocator){NULL, NULL, NULL});
 
     PakReader reader = pakReaderInit("test.pak", (PakAllocator){NULL, NULL, NULL});
-    PakElementData btxt = pakReaderRead(&reader, "b.txt");
-    pakReaderFree(&reader);
+    PakElementData btxt = pakReaderReadData(&reader, "b.txt");
     for (size_t i = 0; i < btxt.dataSize; i++) printf("%c", ((char*)btxt.data)[i]);
-    free(btxt.data);
+    pakReaderFreeData(&reader, btxt.data);
+    pakReaderFree(&reader);
 }

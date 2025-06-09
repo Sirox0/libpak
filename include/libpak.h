@@ -59,8 +59,8 @@ PAK_EXPORT void pakCompressorFinish(PakCompressor* compressor);
 PAK_EXPORT void pakDecompress(char* pakFilePath, PakAllocator allocator);
 
 PAK_EXPORT PakReader pakReaderInit(char* pakFilePath, PakAllocator allocator);
-// it is callee's responsibility to free the element data it got
-PAK_EXPORT PakElementData pakReaderRead(PakReader* reader, char* name);
+PAK_EXPORT PakElementData pakReaderReadData(PakReader* reader, char* name);
+PAK_EXPORT void pakReaderFreeData(PakReader* reader, PakElementData* data);
 PAK_EXPORT void pakReaderFree(PakReader* reader);
 
 #endif
