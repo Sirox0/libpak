@@ -5,8 +5,12 @@
 #include <stdlib.h>
 #include <string.h>
 
-PakReader pakReaderInit(char* pakFilePath) {
+PakReader pakReaderInit(char* pakFilePath, PakAllocator allocator) {
     PakReader reader = {};
+    reader.allocator.alloc = allocator.alloc == NULL ? malloc : allocator.alloc;
+    reader.allocator.realloc = allocator.realloc == NULL ? realloc : allocator.realloc;
+    reader.allocator.free = allocator.free == NULL ? free : allocator.free;
+
     reader.file = fopen(pakFilePath, "rb");
     if (reader.file == NULL) {
         printf("failed to open pak file\n");
@@ -21,10 +25,10 @@ PakReader pakReaderInit(char* pakFilePath) {
     size_t headerSize = ftell(reader.file) - headerOffset;
     fseek(reader.file, headerOffset, SEEK_SET);
 
-    reader.header = (PakElementHeader*)malloc(headerSize);
+    reader.header = (PakElementHeader*)reader.allocator.alloc(headerSize);
     reader.headerCount = headerSize / sizeof(PakElementHeader);
     reader.compressedDataPoolSize = PAK_MEMORY_CHUNK_SIZE;
-    reader.compressedDataPool = malloc(reader.compressedDataPoolSize);
+    reader.compressedDataPool = reader.allocator.alloc(reader.compressedDataPoolSize);
     reader.decompressor = libdeflate_alloc_decompressor();
 
     fread(reader.header, headerSize, 1, reader.file);
@@ -63,14 +67,14 @@ PakElementData pakReaderRead(PakReader* reader, char* name) {
         do {
             reader->compressedDataPoolSize += PAK_MEMORY_CHUNK_SIZE;
         } while (reader->compressedDataPoolSize < element->compressedSize);
-        reader->compressedDataPool = realloc(reader->compressedDataPool, reader->compressedDataPoolSize);
+        reader->compressedDataPool = reader->allocator.realloc(reader->compressedDataPool, reader->compressedDataPoolSize);
     }
 
     fseek(reader->file, element->offset, SEEK_SET);
     fread(reader->compressedDataPool, element->compressedSize, 1, reader->file);
     
     PakElementData ret = {};
-    ret.data = malloc(element->decompressedSize);
+    ret.data = reader->allocator.alloc(element->decompressedSize);
     ret.dataSize = element->decompressedSize;
     if (libdeflate_deflate_decompress(reader->decompressor, reader->compressedDataPool, element->compressedSize, ret.data, element->decompressedSize, NULL) != 0) {
         printf("failed to decompress an element\n");
@@ -81,7 +85,7 @@ PakElementData pakReaderRead(PakReader* reader, char* name) {
 
 void pakReaderFree(PakReader* reader) {
     libdeflate_free_decompressor(reader->decompressor);
-    free(reader->compressedDataPool);
-    free(reader->header);
+    reader->allocator.free(reader->compressedDataPool);
+    reader->allocator.free(reader->header);
     fclose(reader->file);
 }

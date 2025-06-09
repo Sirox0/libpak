@@ -4,6 +4,15 @@
 #include <stdio.h>
 #include <libdeflate.h>
 
+// generated during configuration with cmake
+#include "libpakExport.h"
+
+typedef struct {
+    void* (*alloc)(size_t size);
+    void* (*realloc)(void* mem, size_t nsize);
+    void (*free)(void* mem);
+} PakAllocator;
+
 typedef struct {
     uint8_t nameHash[20]; // sha1 takes 160 bits
     uint64_t offset; // number of bytes before the data of this element in the pak file
@@ -17,6 +26,7 @@ typedef struct {
 } PakElementData;
 
 typedef struct {
+    PakAllocator allocator;
     FILE* file;
     struct libdeflate_compressor* compressor;
     PakElementHeader* header;
@@ -27,6 +37,7 @@ typedef struct {
 } PakCompressor;
 
 typedef struct {
+    PakAllocator allocator;
     FILE* file;
     struct libdeflate_decompressor* decompressor;
     PakElementHeader* header;
@@ -39,16 +50,17 @@ typedef struct {
 #define PAK_ELEMENT_CHUNK_SIZE 128
 
 // supported compression levels range is [0; 12]
-PakCompressor pakCompressorInit(char* pakFilePath, uint8_t compressionLevel);
-void pakCompressorAddData(PakCompressor* compressor, char* name, void* data, size_t size);
-void pakCompressorAddFile(PakCompressor* compressor, char* path);
-void pakCompressorFinish(PakCompressor* compressor);
+// allocator can be NULL
+PAK_EXPORT PakCompressor pakCompressorInit(char* pakFilePath, uint8_t compressionLevel, PakAllocator allocator);
+PAK_EXPORT void pakCompressorAddData(PakCompressor* compressor, char* name, void* data, size_t size);
+PAK_EXPORT void pakCompressorAddFile(PakCompressor* compressor, char* path);
+PAK_EXPORT void pakCompressorFinish(PakCompressor* compressor);
 
-void pakDecompress(char* pakFilePath);
+PAK_EXPORT void pakDecompress(char* pakFilePath, PakAllocator allocator);
 
-PakReader pakReaderInit(char* pakFilePath);
+PAK_EXPORT PakReader pakReaderInit(char* pakFilePath, PakAllocator allocator);
 // it is callee's responsibility to free the element data it got
-PakElementData pakReaderRead(PakReader* reader, char* name);
-void pakReaderFree(PakReader* reader);
+PAK_EXPORT PakElementData pakReaderRead(PakReader* reader, char* name);
+PAK_EXPORT void pakReaderFree(PakReader* reader);
 
 #endif

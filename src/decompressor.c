@@ -3,7 +3,12 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-void pakDecompress(char* pakFilePath) {
+void pakDecompress(char* pakFilePath, PakAllocator argAllocator) {
+    PakAllocator allocator = {};
+    allocator.alloc = argAllocator.alloc == NULL ? malloc : argAllocator.alloc;
+    allocator.realloc = argAllocator.realloc == NULL ? realloc : argAllocator.realloc;
+    allocator.free = argAllocator.free == NULL ? free : argAllocator.free;
+
     FILE* file = fopen(pakFilePath, "rb");
     if (file == NULL) {
         printf("failed to open pak file\n");
@@ -18,14 +23,14 @@ void pakDecompress(char* pakFilePath) {
     size_t headerSize = ftell(file) - headerOffset;
     fseek(file, headerOffset, SEEK_SET);
 
-    PakElementHeader* header = (PakElementHeader*)malloc(headerSize);
+    PakElementHeader* header = (PakElementHeader*)allocator.alloc(headerSize);
     fread(header, headerSize, 1, file);
 
     struct libdeflate_decompressor* decompressor = libdeflate_alloc_decompressor();
     size_t compressedDataSize = PAK_MEMORY_CHUNK_SIZE;
     size_t decompressedDataSize = PAK_MEMORY_CHUNK_SIZE;
-    void* compressedData = malloc(PAK_MEMORY_CHUNK_SIZE);
-    void* decompressedData = malloc(PAK_MEMORY_CHUNK_SIZE);
+    void* compressedData = allocator.alloc(PAK_MEMORY_CHUNK_SIZE);
+    void* decompressedData = allocator.alloc(PAK_MEMORY_CHUNK_SIZE);
 
     for (size_t i = 0; i < headerSize / sizeof(PakElementHeader); i++) {
         fseek(file, header[i].offset, SEEK_SET);
@@ -35,13 +40,13 @@ void pakDecompress(char* pakFilePath) {
             do {
                 compressedDataSize += PAK_MEMORY_CHUNK_SIZE;
             } while (compressedDataSize < header[i].compressedSize);
-            compressedData = realloc(compressedData, compressedDataSize);
+            compressedData = allocator.realloc(compressedData, compressedDataSize);
         }
         if (decompressedDataSize < header[i].decompressedSize) {
             do {
                 decompressedDataSize += PAK_MEMORY_CHUNK_SIZE;
             } while (decompressedDataSize < header[i].decompressedSize);
-            decompressedData = realloc(decompressedData, decompressedDataSize);
+            decompressedData = allocator.realloc(decompressedData, decompressedDataSize);
         }
         
         fread(compressedData, header[i].compressedSize, 1, file);
@@ -63,8 +68,8 @@ void pakDecompress(char* pakFilePath) {
         fclose(outFile);
     }
 
-    free(decompressedData);
-    free(compressedData);
+    allocator.free(decompressedData);
+    allocator.free(compressedData);
     libdeflate_free_decompressor(decompressor);
     fclose(file);
 }

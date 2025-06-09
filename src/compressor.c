@@ -4,8 +4,12 @@
 #include <stdlib.h>
 #include <string.h>
 
-PakCompressor pakCompressorInit(char* pakFilePath, uint8_t compressionLevel) {
+PakCompressor pakCompressorInit(char* pakFilePath, uint8_t compressionLevel, PakAllocator allocator) {
     PakCompressor compressor = {};
+    compressor.allocator.alloc = allocator.alloc == NULL ? malloc : allocator.alloc;
+    compressor.allocator.realloc = allocator.realloc == NULL ? realloc : allocator.realloc;
+    compressor.allocator.free = allocator.free == NULL ? free : allocator.free;
+
     compressor.file = fopen(pakFilePath, "wb");
     if (compressor.file == NULL) {
         printf("failed to create file\n");
@@ -16,10 +20,10 @@ PakCompressor pakCompressorInit(char* pakFilePath, uint8_t compressionLevel) {
     fseek(compressor.file, sizeof(uint64_t), SEEK_SET);
 
     compressor.compressor = libdeflate_alloc_compressor(compressionLevel);
-    compressor.header = malloc(sizeof(PakElementHeader) * PAK_ELEMENT_CHUNK_SIZE);
+    compressor.header = compressor.allocator.alloc(sizeof(PakElementHeader) * PAK_ELEMENT_CHUNK_SIZE);
     compressor.headerSize = PAK_ELEMENT_CHUNK_SIZE;
     compressor.headerCount = 0;
-    compressor.compressedDataPool = malloc(PAK_MEMORY_CHUNK_SIZE);
+    compressor.compressedDataPool = compressor.allocator.alloc(PAK_MEMORY_CHUNK_SIZE);
     compressor.compressedDataPoolSize = PAK_MEMORY_CHUNK_SIZE;
     return compressor;
 }
@@ -42,7 +46,7 @@ void pakCompressorAddData(PakCompressor* compressor, char* name, void* data, siz
         do {
             compressor->compressedDataPoolSize += PAK_MEMORY_CHUNK_SIZE;
         } while (compressor->compressedDataPoolSize < maxCompressedSize);
-        compressor->compressedDataPool = realloc(compressor->compressedDataPool, compressor->compressedDataPoolSize);
+        compressor->compressedDataPool = compressor->allocator.realloc(compressor->compressedDataPool, compressor->compressedDataPoolSize);
     }
 
     header.compressedSize = libdeflate_deflate_compress(compressor->compressor, data, size, compressor->compressedDataPool, compressor->compressedDataPoolSize);
@@ -56,7 +60,7 @@ void pakCompressorAddData(PakCompressor* compressor, char* name, void* data, siz
     // add the header to compressor header list
     if (compressor->headerCount == compressor->headerSize) {
         compressor->headerSize += PAK_ELEMENT_CHUNK_SIZE;
-        compressor->header = realloc(compressor->header, compressor->headerSize * sizeof(PakElementHeader));
+        compressor->header = compressor->allocator.realloc(compressor->header, compressor->headerSize * sizeof(PakElementHeader));
     }
     compressor->header[compressor->headerCount] = header;
     compressor->headerCount++;
@@ -74,12 +78,12 @@ void pakCompressorAddFile(PakCompressor* compressor, char* path) {
     size_t size = ftell(file);
     fseek(file, 0, SEEK_SET);
 
-    void* data = malloc(size);
+    void* data = compressor->allocator.alloc(size);
     fread(data, size, 1, file);
     fclose(file);
 
     pakCompressorAddData(compressor, path, data, size);
-    free(data);
+    compressor->allocator.free(data);
 }
 
 void pakCompressorFinish(PakCompressor* compressor) {
@@ -90,9 +94,9 @@ void pakCompressorFinish(PakCompressor* compressor) {
     fseek(compressor->file, 0, SEEK_SET);
     fwrite(&headerOffset, sizeof(uint64_t), 1, compressor->file);
 
-    // free the compressor
+    // compressor.allocator.free the compressor
     fclose(compressor->file);
-    free(compressor->compressedDataPool);
-    free(compressor->header);
+    compressor->allocator.free(compressor->compressedDataPool);
+    compressor->allocator.free(compressor->header);
     libdeflate_free_compressor(compressor->compressor);
 }
