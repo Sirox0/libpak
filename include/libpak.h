@@ -51,16 +51,16 @@ typedef struct {
 
 // supported compression levels range is [0; 12]
 // allocator can be NULL
-PAK_EXPORT PakCompressor pakCompressorInit(char* pakFilePath, uint8_t compressionLevel, PakAllocator allocator);
-PAK_EXPORT void pakCompressorAddData(PakCompressor* compressor, char* name, void* data, size_t size);
-PAK_EXPORT void pakCompressorAddFile(PakCompressor* compressor, char* path);
-PAK_EXPORT void pakCompressorFinish(PakCompressor* compressor);
+PakCompressor pakCompressorInit(char* pakFilePath, uint8_t compressionLevel, PakAllocator allocator);
+void pakCompressorAddData(PakCompressor* compressor, char* name, void* data, size_t size);
+void pakCompressorAddFile(PakCompressor* compressor, char* path);
+void pakCompressorFinish(PakCompressor* compressor);
 
-PAK_EXPORT void pakDecompress(char* pakFilePath, PakAllocator allocator);
+void pakDecompress(char* pakFilePath, PakAllocator allocator);
 
-PAK_EXPORT PakReader pakReaderInit(char* pakFilePath, PakAllocator allocator);
-PAK_EXPORT PakElementData pakReaderReadData(PakReader* reader, char* name);
-PAK_EXPORT void pakReaderFreeData(PakReader* reader, PakElementData* data);
-PAK_EXPORT void pakReaderFree(PakReader* reader);
+PakReader pakReaderInit(char* pakFilePath, PakAllocator allocator);
+PakElementData pakReaderReadData(PakReader* reader, char* name);
+void pakReaderFreeData(PakReader* reader, PakElementData* data);
+void pakReaderFree(PakReader* reader);
 
 #endif

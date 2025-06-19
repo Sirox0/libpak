@@ -20,15 +20,7 @@ set(SOURCES
 
 find_package(libdeflate REQUIRED)
 
-option(LIBPAK_STATIC "produce static library" ON)
-if(LIBPAK_STATIC)
-    add_library(pak STATIC ${SOURCES})
-    add_compile_definitions(PAK_STATIC)
-else()
-    add_library(pak SHARED ${SOURCES})
-endif()
+add_library(pak STATIC ${SOURCES})
+
 target_link_libraries(pak libdeflate::libdeflate_static)
 target_include_directories(pak PUBLIC ${CMAKE_CURRENT_LIST_DIR}/include ${CMAKE_CURRENT_LIST_DIR}/external/sha256)
-
-include(GenerateExportHeader)
-generate_export_header(pak EXPORT_FILE_NAME ${CMAKE_CURRENT_LIST_DIR}/include/libpakExport.h STATIC_DEFINE PAK_STATIC)
