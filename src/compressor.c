@@ -95,7 +95,7 @@ void pakCompressorFinish(PakCompressor* compressor) {
     fseek(compressor->file, 0, SEEK_SET);
     fwrite(&headerOffset, sizeof(uint64_t), 1, compressor->file);
 
-    // compressor.allocator.free the compressor
+    // free the compressor
     fclose(compressor->file);
     compressor->allocator.free(compressor->compressedDataPool);
     compressor->allocator.free(compressor->header);

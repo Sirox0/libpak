@@ -1,6 +1,10 @@
 #ifndef LIBPAK_H
 #define LIBPAK_H
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #include <stdio.h>
 #include <libdeflate.h>
 
@@ -62,5 +66,9 @@ PakReader pakReaderInit(char* pakFilePath, PakAllocator allocator);
 PakElementData pakReaderReadData(PakReader* reader, char* name);
 void pakReaderFreeData(PakReader* reader, PakElementData* data);
 void pakReaderFree(PakReader* reader);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif
