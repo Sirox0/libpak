@@ -8,9 +8,6 @@ extern "C" {
 #include <stdio.h>
 #include <libdeflate.h>
 
-// generated during configuration with cmake
-#include "libpakExport.h"
-
 typedef struct {
     void* (*alloc)(size_t size);
     void* (*realloc)(void* mem, size_t nsize);
