@@ -84,7 +84,7 @@ PakElementData pakReaderReadData(PakReader* reader, char* name) {
     return ret;
 }
 
-PAK_EXPORT void pakReaderFreeData(PakReader* reader, PakElementData* data) {
+void pakReaderFreeData(PakReader* reader, PakElementData* data) {
     reader->allocator.free(data);
 }
 
