@@ -57,8 +57,10 @@ void pakCompressorAddData(PakCompressor* compressor, char* name, void* data, siz
 void pakCompressorAddFile(PakCompressor* compressor, char* path);
 void pakCompressorFinish(PakCompressor* compressor);
 
+// allocator can be NULL
 void pakDecompress(char* pakFilePath, PakAllocator allocator);
 
+// allocator can be NULL
 PakReader pakReaderInit(char* pakFilePath, PakAllocator allocator);
 PakElementData pakReaderReadData(PakReader* reader, char* name);
 void pakReaderFreeData(PakReader* reader, PakElementData* data);
