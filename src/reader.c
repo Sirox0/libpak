@@ -85,7 +85,7 @@ PakElementData pakReaderReadData(PakReader* reader, char* name) {
 }
 
 void pakReaderFreeData(PakReader* reader, PakElementData* data) {
-    reader->allocator.free(data);
+    reader->allocator.free(data->data);
 }
 
 void pakReaderFree(PakReader* reader) {
