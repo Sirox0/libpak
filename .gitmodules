@@ -1,3 +1,0 @@
-[submodule "external/sha256"]
-	path = external/sha256
-	url = https://github.com/LekKit/sha256

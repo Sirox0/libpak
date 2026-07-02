@@ -1,4 +1,4 @@
-build
-test/build
-.vscode
 .cache
+.vscode
+build
+tests/build

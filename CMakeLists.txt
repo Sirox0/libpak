@@ -1,26 +1,23 @@
 cmake_minimum_required(VERSION 3.25)
 project(libpak LANGUAGES C VERSION 1.0)
 
-set(CMAKE_C_STANDARD 11)
-set(CMAKE_C_STANDARD_REQUIRED ON)
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -Wextra -O3")
+option(LIBPAK_BUILD_TEST "whether tests for libpak should be compiled" ${PROJECT_IS_TOP_LEVEL})
 
 if(WIN32)
     add_compile_definitions(_CRT_SECURE_NO_DEPRECATE)
 endif()
 
-set(SOURCES
-    #hashing library
-    ${CMAKE_CURRENT_LIST_DIR}/external/sha256/sha256.c
+find_package(zstd REQUIRED)
 
-    ${CMAKE_CURRENT_LIST_DIR}/src/compressor.c
-    ${CMAKE_CURRENT_LIST_DIR}/src/decompressor.c
-    ${CMAKE_CURRENT_LIST_DIR}/src/reader.c
-)
+add_library(libpak INTERFACE)
+target_include_directories(libpak INTERFACE ${CMAKE_CURRENT_LIST_DIR}/)
+target_link_libraries(libpak INTERFACE zstd::libzstd_static)
 
-find_package(libdeflate REQUIRED)
+if(LIBPAK_BUILD_TEST)
+    add_executable(libpaktest ${CMAKE_CURRENT_LIST_DIR}/test/libpaktest.c)
+    target_link_libraries(libpaktest libpak)
 
-add_library(pak STATIC ${SOURCES})
-
-target_link_libraries(pak libdeflate::libdeflate_static)
-target_include_directories(pak PUBLIC ${CMAKE_CURRENT_LIST_DIR}/include ${CMAKE_CURRENT_LIST_DIR}/external/sha256)
+    file(COPY ${CMAKE_CURRENT_LIST_DIR}/test/a.txt DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
+    file(COPY ${CMAKE_CURRENT_LIST_DIR}/test/b.txt DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
+    file(COPY ${CMAKE_CURRENT_LIST_DIR}/test/c.txt DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
+endif()
