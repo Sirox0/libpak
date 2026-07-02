@@ -91,7 +91,6 @@ void libpakFreeItem(PakItem *item);
 void libpakUnloadArchive(PakArchive *arc);
 
 
-#define LIBPAK_IMPLEMENTATION
 #ifdef LIBPAK_IMPLEMENTATION
 
 // #ifndef LIBPAK_COMPRESSED_FILES_BLOCK_SIZE
