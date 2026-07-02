@@ -86,7 +86,7 @@ void libpakEndArchive(PakCompressor *compressor, int32_t zstdCompressionLevel, s
 
 // read API
 PakArchive libpakLoadArchive(char* path);
-PakItem libpakReadItemFrom(PakArchive *arc, char path[128]);
+PakItem libpakReadItemFromArchive(PakArchive *arc, char path[128]);
 void libpakFreeItem(PakItem *item);
 void libpakUnloadArchive(PakArchive *arc);
 
