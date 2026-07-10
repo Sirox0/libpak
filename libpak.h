@@ -8,6 +8,7 @@ extern "C" {
 #include <zstd.h>
 #include <zdict.h>
 
+#include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <inttypes.h>
@@ -84,7 +85,6 @@ PakItem libpakReadItemFromArchive(PakArchive *arc, char path[128]);
 void libpakFreeItem(PakItem *item);
 void libpakUnloadArchive(PakArchive *arc);
 
-#define LIBPAK_IMPLEMENTATION
 #ifdef LIBPAK_IMPLEMENTATION
 
 #ifndef LIBPAK_MALLOC
