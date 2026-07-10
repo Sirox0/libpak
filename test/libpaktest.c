@@ -4,13 +4,13 @@
 int main() {
     libpakInit(LIBPAK_INIT_COMPRESSION | LIBPAK_INIT_DECOMPRESSION);
 
-    PakCompressor compressor = libpakBeginArchive("test.pak");
+    PakCompressor compressor = libpakBeginArchive("test.pak", 3);
 
     libpakAddFileToArchive(&compressor, "a.txt");
     libpakAddFileToArchive(&compressor, "b.txt");
     libpakAddFileToArchive(&compressor, "c.txt");
 
-    libpakEndArchive(&compressor, 22, 0, 0, 100);
+    assert(libpakEndArchive(&compressor, 22, 0, 0, 100) == 0);
 
     PakArchive arc = libpakLoadArchive("test.pak");
 

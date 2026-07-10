@@ -29,14 +29,7 @@ extern "C" {
 typedef enum {
     LIBPAK_INIT_COMPRESSION = 0b1,
     LIBPAK_INIT_DECOMPRESSION = 0b10
-} PakInitFlags;
-
-typedef struct {
-    size_t count;
-    size_t capacity;
-
-    void *ptr;
-} PakFlexibleArray;
+} LibpakInitFlags;
 
 typedef struct {
     size_t offset;
@@ -55,7 +48,8 @@ typedef struct {
 typedef struct {
     FILE *file;
 
-    PakFlexibleArray entries;
+    uint32_t curEntryCount;
+    PakHashMapEntry *entries;
 } PakCompressor;
 
 typedef struct {
@@ -80,9 +74,9 @@ void libpakQuit();
 uint32_t libpakMurmurHash3_32(uint8_t* key, size_t len);
 
 // compress API
-PakCompressor libpakBeginArchive(char* path);
+PakCompressor libpakBeginArchive(char* path, uint32_t maxFiles);
 void libpakAddFileToArchive(PakCompressor *compressor, char path[128]);
-void libpakEndArchive(PakCompressor *compressor, int32_t zstdCompressionLevel, size_t zstdDictSize, uint64_t zstdDictSampleCount, uint64_t hashMapSlotCount);
+uint32_t libpakEndArchive(PakCompressor *compressor, int32_t zstdCompressionLevel, size_t zstdDictSize, uint64_t zstdDictSampleCount, uint64_t hashMapSlotCount);
 
 // read API
 PakArchive libpakLoadArchive(char* path);
@@ -90,16 +84,8 @@ PakItem libpakReadItemFromArchive(PakArchive *arc, char path[128]);
 void libpakFreeItem(PakItem *item);
 void libpakUnloadArchive(PakArchive *arc);
 
-
+#define LIBPAK_IMPLEMENTATION
 #ifdef LIBPAK_IMPLEMENTATION
-
-// #ifndef LIBPAK_COMPRESSED_FILES_BLOCK_SIZE
-// #define LIBPAK_COMPRESSED_FILES_BLOCK_SIZE 1024*1024*10 // 10 mb
-// #endif
-
-#ifndef LIBPAK_ENTRIES_BLOCK_SIZE
-#define LIBPAK_ENTRIES_BLOCK_SIZE sizeof(PakHashMapEntry)*20
-#endif
 
 #ifndef LIBPAK_MALLOC
 #define LIBPAK_MALLOC malloc
@@ -179,52 +165,54 @@ void libpakQuit() {
     if (zstdCCtx != NULL) ZSTD_freeCCtx(zstdCCtx);
 }
 
-PakCompressor libpakBeginArchive(char* path) {
+PakCompressor libpakBeginArchive(char* path, uint32_t maxFiles) {
+    #ifndef LIBPAK_NO_ASSERTIONS
     assert(zstdCCtx != NULL);
+    #endif
 
     FILE* file = fopen(path, "wb");
+    #ifndef LIBPAK_NO_ASSERTIONS
     assert(file != NULL);
+    #endif
     
     PakCompressor archive = {
         .file = file,
-        .entries.count = 0,
-        .entries.capacity = LIBPAK_ENTRIES_BLOCK_SIZE,
-        .entries.ptr = LIBPAK_MALLOC(LIBPAK_ENTRIES_BLOCK_SIZE)
+        .curEntryCount = 0,
+        .entries = LIBPAK_MALLOC(sizeof(PakHashMapEntry) * maxFiles)
     };
 
     return archive;
 }
 
 void libpakAddFileToArchive(PakCompressor *compressor, char path[128]) {
-    if (compressor->entries.capacity <= compressor->entries.count) {
-        do { compressor->entries.capacity += LIBPAK_ENTRIES_BLOCK_SIZE; } while (compressor->entries.capacity > compressor->entries.count);
-        compressor->entries.ptr = LIBPAK_REALLOC(compressor->entries.ptr, compressor->entries.capacity);
-    }
-
     PakHashMapEntry entry = {
         .offset = 0, // this is filled by libpakEndArchive
         .size = 0, // this is filled by libpakEndArchive
         .uncompressedSize = 0 // this is filled by libpakEndArchive
     };
 
-    ((PakHashMapEntry*)compressor->entries.ptr)[compressor->entries.count] = entry;
-    memset(&((PakHashMapEntry*)compressor->entries.ptr)[compressor->entries.count].path, 0, sizeof(char) * 128);
-    strncpy(((PakHashMapEntry*)compressor->entries.ptr)[compressor->entries.count].path, path, 128);
+    compressor->entries[compressor->curEntryCount] = entry;
+    memset(&compressor->entries[compressor->curEntryCount].path, 0, sizeof(char) * 128);
+    strncpy(compressor->entries[compressor->curEntryCount].path, path, 128);
 
-    compressor->entries.count++;
+    compressor->curEntryCount++;
 }
 
-void libpakEndArchive(PakCompressor *compressor, int32_t zstdCompressionLevel, size_t zstdDictSize, uint64_t zstdDictSampleCount, uint64_t hashMapSlotCount) {
+uint32_t libpakEndArchive(PakCompressor *compressor, int32_t zstdCompressionLevel, size_t zstdDictSize, uint64_t zstdDictSampleCount, uint64_t hashMapSlotCount) {
+    #ifndef LIBPAK_NO_ASSERTIONS
+    assert(compressor->curEntryCount >= zstdDictSampleCount);
+    #endif
+
     ZSTD_CCtx_setParameter(zstdCCtx, ZSTD_c_compressionLevel, zstdCompressionLevel);
 
     PakHeader header = {
         .identifier = "LPAK",
         .zstdDictSize = 0,
         .hashMapSlotCount = hashMapSlotCount,
-        .hashMapSavedSlots = compressor->entries.count
+        .hashMapSavedSlots = compressor->curEntryCount
     };
 
-    size_t curOffset = sizeof(PakHeader) + (sizeof(uint64_t) + sizeof(PakHashMapEntry)) * compressor->entries.count;
+    size_t curOffset = sizeof(PakHeader) + (sizeof(uint64_t) + sizeof(PakHashMapEntry)) * compressor->curEntryCount;
 
     fseek(compressor->file, curOffset, SEEK_SET);
 
@@ -238,8 +226,10 @@ void libpakEndArchive(PakCompressor *compressor, int32_t zstdCompressionLevel, s
         size_t totalSamplesSize = 0;
 
         for (uint64_t i = 0; i < zstdDictSampleCount; i++) {
-            files[i] = fopen(((PakHashMapEntry*)compressor->entries.ptr)[i].path, "rb");
+            files[i] = fopen(compressor->entries[i].path, "rb");
+            #ifndef LIBPAK_NO_ASSERTIONS
             assert(files[i] != NULL);
+            #endif
 
             fseek(files[i], 0, SEEK_END);
             sampleSizes[i] = ftell(files[i]);
@@ -256,7 +246,9 @@ void libpakEndArchive(PakCompressor *compressor, int32_t zstdCompressionLevel, s
         }
 
         zstdDictSize = ZDICT_trainFromBuffer(zstdDict, zstdDictSize, sampleFilesContents[0], sampleSizes, zstdDictSampleCount);
+        #ifndef LIBPAK_NO_ASSERTIONS
         assert(!ZSTD_isError(zstdDictSize));
+        #endif
 
         header.zstdDictSize = zstdDictSize;
 
@@ -271,8 +263,8 @@ void libpakEndArchive(PakCompressor *compressor, int32_t zstdCompressionLevel, s
         ZSTD_CCtx_refCDict(zstdCCtx, cdict);
 
         for (uint64_t i = 0; i < zstdDictSampleCount; i++) {
-            ((PakHashMapEntry*)compressor->entries.ptr)[i].offset = curOffset;
-            ((PakHashMapEntry*)compressor->entries.ptr)[i].uncompressedSize = sampleSizes[i];
+            compressor->entries[i].offset = curOffset;
+            compressor->entries[i].uncompressedSize = sampleSizes[i];
             
             ZSTD_inBuffer in = {
                 .src = sampleFilesContents[i],
@@ -294,7 +286,9 @@ void libpakEndArchive(PakCompressor *compressor, int32_t zstdCompressionLevel, s
                 };
 
                 size_t remaining = ZSTD_compressStream2(zstdCCtx, &out, &in, mode);
+                #ifndef LIBPAK_NO_ASSERTIONS
                 assert(!ZSTD_isError(remaining));
+                #endif
 
                 fwrite(zstdOutputStream, out.pos, 1, compressor->file);
                 size += out.pos;
@@ -302,7 +296,7 @@ void libpakEndArchive(PakCompressor *compressor, int32_t zstdCompressionLevel, s
                 if (mode == ZSTD_e_end && remaining == 0) break;
             }
 
-            ((PakHashMapEntry*)compressor->entries.ptr)[i].size = size;
+            compressor->entries[i].size = size;
             curOffset += size;
 
             fclose(files[i]);
@@ -311,19 +305,21 @@ void libpakEndArchive(PakCompressor *compressor, int32_t zstdCompressionLevel, s
         LIBPAK_FREE(sampleFilesContents[0]);
     }
 
-    for (uint64_t i = zstdDictSampleCount; i < compressor->entries.count; i++) {
-        ((PakHashMapEntry*)compressor->entries.ptr)[i].offset = curOffset;
+    for (uint64_t i = zstdDictSampleCount; i < compressor->curEntryCount; i++) {
+        compressor->entries[i].offset = curOffset;
 
         ZSTD_EndDirective mode = ZSTD_e_continue;
 
         size_t size = 0;
 
-        FILE *file = fopen(((PakHashMapEntry*)compressor->entries.ptr)[i].path, "rb");
+        FILE *file = fopen(compressor->entries[i].path, "rb");
+        #ifndef LIBPAK_NO_ASSERTIONS
         assert(file != NULL);
+        #endif
 
         while (mode != ZSTD_e_end) {
             size_t sizeRead = fread(zstdInputStream, 1, zstdInputStreamSize, file);
-            ((PakHashMapEntry*)compressor->entries.ptr)[i].uncompressedSize += sizeRead;
+            compressor->entries[i].uncompressedSize += sizeRead;
 
             ZSTD_inBuffer in = {
                 .src = zstdInputStream,
@@ -341,7 +337,9 @@ void libpakEndArchive(PakCompressor *compressor, int32_t zstdCompressionLevel, s
                 };
 
                 size_t remaining = ZSTD_compressStream2(zstdCCtx, &out, &in, mode);
+                #ifndef LIBPAK_NO_ASSERTIONS
                 assert(!ZSTD_isError(remaining));
+                #endif
 
                 fwrite(zstdOutputStream, out.pos, 1, compressor->file);
                 size += out.pos;
@@ -350,7 +348,7 @@ void libpakEndArchive(PakCompressor *compressor, int32_t zstdCompressionLevel, s
             }
         }
 
-        ((PakHashMapEntry*)compressor->entries.ptr)[i].size = size;
+        compressor->entries[i].size = size;
         curOffset += size;
 
         fclose(file);
@@ -360,8 +358,8 @@ void libpakEndArchive(PakCompressor *compressor, int32_t zstdCompressionLevel, s
     memset(hashmap, 0, sizeof(PakHashMapEntry) * hashMapSlotCount);
 
     uint64_t collisionCount = 0;
-    for (uint64_t i = 0; i < compressor->entries.count; i++) {
-        uint32_t hash = libpakMurmurHash3_32((uint8_t*)((PakHashMapEntry*)compressor->entries.ptr)[i].path, 128);
+    for (uint64_t i = 0; i < compressor->curEntryCount; i++) {
+        uint32_t hash = libpakMurmurHash3_32((uint8_t*)(compressor->entries[i].path), 128);
         uint32_t slot = hash % hashMapSlotCount;
 
         uint32_t startingSlot = slot;
@@ -373,14 +371,18 @@ void libpakEndArchive(PakCompressor *compressor, int32_t zstdCompressionLevel, s
 
             if (slot == startingSlot) {
                 fprintf(stderr, "hashMapSlotCount provided to libpakEndArchive was not sufficient, try increasing\n");
-                assert(0);
+
+                LIBPAK_FREE(hashmap);
+                ZSTD_freeCDict(cdict);
+
+                return 1;
             }
         }
 
-        hashmap[slot].offset = ((PakHashMapEntry*)compressor->entries.ptr)[i].offset;
-        hashmap[slot].size = ((PakHashMapEntry*)compressor->entries.ptr)[i].size;
-        hashmap[slot].uncompressedSize = ((PakHashMapEntry*)compressor->entries.ptr)[i].uncompressedSize;
-        strncpy(hashmap[slot].path, ((PakHashMapEntry*)compressor->entries.ptr)[i].path, 128);
+        hashmap[slot].offset = compressor->entries[i].offset;
+        hashmap[slot].size = compressor->entries[i].size;
+        hashmap[slot].uncompressedSize = compressor->entries[i].uncompressedSize;
+        strncpy(hashmap[slot].path, compressor->entries[i].path, 128);
     }
 
     fseek(compressor->file, 0, SEEK_SET);
@@ -404,17 +406,23 @@ void libpakEndArchive(PakCompressor *compressor, int32_t zstdCompressionLevel, s
     LIBPAK_FREE(hashmap);
     ZSTD_freeCDict(cdict);
 
-    LIBPAK_FREE(compressor->entries.ptr);
+    LIBPAK_FREE(compressor->entries);
     fclose(compressor->file);
+
+    return 0;
 }
 
 PakArchive libpakLoadArchive(char* path) {
     FILE* file = fopen(path, "rb");
+    #ifndef LIBPAK_NO_ASSERTIONS
     assert(file != NULL);
+    #endif
 
     PakHeader header;
     fread(&header, sizeof(PakHeader), 1, file);
+    #ifndef LIBPAK_NO_ASSERTIONS
     assert(strcmp(header.identifier, "LPAK") == 0);
+    #endif
 
     PakArchive arc = {
         .file = file,
@@ -455,7 +463,7 @@ PakItem libpakReadItemFromArchive(PakArchive *arc, char path[128]) {
 
         if (slot == startingSlot) {
             fprintf(stderr, "PakArchive does not contain item with the path: %s\n", path);
-            assert(0);
+            return (PakItem){0, NULL};
         }
     }
 
@@ -482,7 +490,9 @@ PakItem libpakReadItemFromArchive(PakArchive *arc, char path[128]) {
 
         while (in.pos != in.size && out.pos != out.size) {
             size_t remaining = ZSTD_decompressStream(zstdDStream, &out, &in);
+            #ifndef LIBPAK_NO_ASSERTIONS
             assert(!ZSTD_isError(remaining));
+            #endif
         }
 
         if (sizeRead < zstdInputStreamSize) break;
