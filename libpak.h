@@ -82,12 +82,7 @@ typedef struct {
     PakHashMapEntry *hashmap;
 
     ZSTD_DDict *zstdDDict;
-} PakArchive;
-
-typedef struct {
-    size_t size;
-    void *data;
-} PakItem;
+} PakReader;
 
 /*!
     \brief initialize libpak
@@ -102,7 +97,7 @@ void libpakDeinit();
 /*!
     \brief hashing function used internally by libpak
     \param[in] key an array of uint8_t of length \p len
-    \param[in] len length of \p key array
+    \param[in] len the length of the array \p key
     \return the hash of \p key
 */
 uint32_t libpakMurmurHash3_32(uint8_t* key, size_t len);
@@ -111,7 +106,7 @@ uint32_t libpakMurmurHash3_32(uint8_t* key, size_t len);
 /*!
     \brief begin creating a pak archive
     \param[in] path the path where the archive will be saved
-    \param[in] maxFiles maximum number of files added to this archive through libpakAddFileToArchive
+    \param[in] maxFiles the maximum number of files added to this archive through libpakAddFileToArchive
     \return a PakCompressor object, used as an argument for libpakAddFileToArchive and libpakEndArchive
 */
 PakCompressor libpakBeginArchive(char* path, uint32_t maxFiles);
@@ -128,43 +123,46 @@ void libpakAddFileToArchive(PakCompressor *compressor, char path[128]);
     \param[in] compressor a pointer to PakCompressor object created via libpakBeginArchive
     \param[in] zstdCompressionLevel zstd compression level used for the archive,
         as of writing this documentation, acceptable range is [-7; 22]
-    \param[in] zstdDictSize size in bytes of zstd dictionary for the archive, can be 0 for no dictionary
+    \param[in] zstdDictSize the size in bytes of zstd dictionary for the archive, can be 0 for no dictionary
     \param[in] zstdDictSampleCount the number of first files added to archive to use for making a dictionary,
         ignored if \p zstdDictSize is 0
-    \param[in] hashMapSlotCount number of slots in the hashmap of the archive entries,
-        higher numbers can increase the speed of finding the file via libpakReadItemFromArchive,
+    \param[in] hashMapSlotCount the number of slots in the hashmap of the archive entries,
+        higher numbers can increase the speed of finding the file via libpakReadItem and libpakGetItemSize,
         but will also make the hashmap use more memory. hashmap size is always \p hashMapSlotCount * sizeof(PakHashMapEntry)
-    \return an error code, error string will be printed to stderr if non-zero.
-        error codes:
-        0 - no error,
-        1 - insufficient amount of hashmap slots
+    \return 0 on success, 1 if the amount of hashmap slots was insufficient
 */
 uint32_t libpakEndArchive(PakCompressor *compressor, int32_t zstdCompressionLevel, size_t zstdDictSize, uint64_t zstdDictSampleCount, uint64_t hashMapSlotCount);
 
 // reading API
 /*!
-    \brief load a pak archive at path \p path
-    \param[in] path the path to a pak archive to load
-    \return a PakArchive object, used as an argument for libpakReadItemFromArchive and libpakFreeArchive
+    \brief create a PakReader for the pak archive at path \p path
+    \param[in] path the path to a pak archive
+    \return a PakReader object, used as an argument for libpakReadItem, libpakGetItemSize and libpakDestroyArchiveReader
 */
-PakArchive libpakLoadArchive(char* path);
+PakReader libpakCreateArchiveReader(char* path);
 /*!
-    \brief read an item in pak archive \p arc with path \p path
-    \param[in] arc a pointer to PakArchive object created via libpakLoadArchive
-    \return a PakItem object with the data of the requested file in the archive,
-        if an entry with path \p path does not exist in the archive, (PakItem){0, NULL} is returned
+    \brief get the uncompressed size of an item with path \p path inside of the pak archive bound to the reader
+    \param[in] reader a pointer to PakReader object created via libpakCreateArchiveReader
+    \param[in] path the path of the file to get the size of (same as when compressing),
+        file paths inside pak archive are capped to 128 characters
+    \return the size of the file at path \p path, if such file exists, 0 otherwise
 */
-PakItem libpakReadItemFromArchive(PakArchive *arc, char path[128]);
+size_t libpakGetItemSize(PakReader *reader, char path[128]);
 /*!
-    \brief free a PakItem object created with libpakReadItemFromArchive
-    \param[in] item the PakItem to free
+    \brief read an item with path \p path inside of the pak archive bound to the reader
+    \param[in] reader a pointer to PakReader object created via libpakCreateArchiveReader
+    \param[in] path the path of the file to read (same as when compressing),
+        file paths inside pak archive are capped to 128 characters
+    \param[out] buf a buffer to which data of the file would be stored, must be atleast the size,
+        returned by libpakGetItemSize on the same path,
+    \return 0 on success, 1 if no file with path \p path was found in the archive bound to reader \p reader
 */
-void libpakFreeItem(PakItem *item);
+uint32_t libpakReadItem(PakReader *reader, char path[128], void *buf);
 /*!
-    \brief free a PakArchive object created with libpakLoadArchive
-    \param[in] arc the PakArchive to free
+    \brief destroy a PakReader object created with libpakCreateArchiveReader
+    \param[in] reader the PakReader to free
 */
-void libpakFreeArchive(PakArchive *arc);
+void libpakDestroyArchiveReader(PakReader *reader);
 
 #ifdef LIBPAK_IMPLEMENTATION
 
@@ -493,7 +491,7 @@ uint32_t libpakEndArchive(PakCompressor *compressor, int32_t zstdCompressionLeve
     return 0;
 }
 
-PakArchive libpakLoadArchive(char* path) {
+PakReader libpakCreateArchiveReader(char* path) {
     FILE* file = fopen(path, "rb");
     #ifndef LIBPAK_NO_ASSERTIONS
     LIBPAK_ASSERT(file != NULL);
@@ -505,61 +503,77 @@ PakArchive libpakLoadArchive(char* path) {
     LIBPAK_ASSERT(strcmp(header.identifier, "LPAK") == 0);
     #endif
 
-    PakArchive arc = {
+    PakReader reader = {
         .file = file,
         .header = header,
         .hashmap = LIBPAK_MALLOC(sizeof(PakHashMapEntry) * header.hashMapSlotCount),
         .zstdDDict = NULL
     };
 
-    strncpy(arc.header.identifier, header.identifier, 4);
+    strncpy(reader.header.identifier, header.identifier, 4);
 
     for (uint64_t i = 0; i < header.hashMapSavedSlots; i++) {
         uint64_t idx;
         fread(&idx, sizeof(uint64_t), 1, file);
-        fread(&arc.hashmap[idx], sizeof(PakHashMapEntry), 1, file);
+        fread(&reader.hashmap[idx], sizeof(PakHashMapEntry), 1, file);
     }
 
     if (header.zstdDictSize > 0) {
         void *ddict = LIBPAK_MALLOC(header.zstdDictSize);
         fread(ddict, header.zstdDictSize, 1, file);
 
-        arc.zstdDDict = ZSTD_createDDict(ddict, header.zstdDictSize);
+        reader.zstdDDict = ZSTD_createDDict(ddict, header.zstdDictSize);
         LIBPAK_FREE(ddict);
 
-        ZSTD_DCtx_refDDict(zstdDStream, arc.zstdDDict);
+        ZSTD_DCtx_refDDict(zstdDStream, reader.zstdDDict);
     }
 
-    return arc;
+    return reader;
 }
 
-PakItem libpakReadItemFromArchive(PakArchive *arc, char path[128]) {
-    uint32_t hash = libpakMurmurHash3_32((uint8_t*)path, 128);
-    uint32_t slot = hash % arc->header.hashMapSlotCount;
+size_t libpakGetItemSize(PakReader *reader, char path[128]) {
+    int32_t hash = libpakMurmurHash3_32((uint8_t*)path, 128);
+    uint32_t slot = hash % reader->header.hashMapSlotCount;
 
     uint32_t startingSlot = slot;
 
-    while (strcmp(arc->hashmap[slot].path, path) != 0) {
-        slot = (slot + 1) % arc->header.hashMapSlotCount;
+    while (strcmp(reader->hashmap[slot].path, path) != 0) {
+        slot = (slot + 1) % reader->header.hashMapSlotCount;
 
         if (slot == startingSlot) {
-            fprintf(stderr, "PakArchive does not contain item with the path: %s\n", path);
-            return (PakItem){0, NULL};
+            fprintf(stderr, "PakReader does not contain an entry with the path: %s\n", path);
+            return 0;
         }
     }
 
-    fseek(arc->file, arc->hashmap[slot].offset, SEEK_SET);
+    return reader->hashmap[slot].uncompressedSize;
+}
 
-    PakItem item = {arc->hashmap[slot].uncompressedSize, LIBPAK_MALLOC(arc->hashmap[slot].uncompressedSize)};
+uint32_t libpakReadItem(PakReader *reader, char path[128], void *buf) {
+    uint32_t hash = libpakMurmurHash3_32((uint8_t*)path, 128);
+    uint32_t slot = hash % reader->header.hashMapSlotCount;
+
+    uint32_t startingSlot = slot;
+
+    while (strcmp(reader->hashmap[slot].path, path) != 0) {
+        slot = (slot + 1) % reader->header.hashMapSlotCount;
+
+        if (slot == startingSlot) {
+            fprintf(stderr, "PakReader does not contain an entry with the path: %s\n", path);
+            return 1;
+        }
+    }
+
+    fseek(reader->file, reader->hashmap[slot].offset, SEEK_SET);
 
     ZSTD_outBuffer out = {
-        .dst = item.data,
-        .size = item.size,
+        .dst = buf,
+        .size = reader->hashmap[slot].uncompressedSize,
         .pos = 0
     };
 
     while (1) {
-        size_t sizeRead = fread(zstdInputStream, 1, zstdInputStreamSize, arc->file);
+        size_t sizeRead = fread(zstdInputStream, 1, zstdInputStreamSize, reader->file);
 
         ZSTD_inBuffer in = {
             .src = zstdInputStream,
@@ -579,16 +593,12 @@ PakItem libpakReadItemFromArchive(PakArchive *arc, char path[128]) {
         if (sizeRead < zstdInputStreamSize) break;
     }
 
-    return item;
+    return 0;
 }
 
-void libpakFreeItem(PakItem *item) {
-    LIBPAK_FREE(item->data);
-}
-
-void libpakFreeArchive(PakArchive *arc) {
-    ZSTD_freeDDict(arc->zstdDDict);
-    LIBPAK_FREE(arc->hashmap);
+void libpakDestroyArchiveReader(PakReader *reader) {
+    ZSTD_freeDDict(reader->zstdDDict);
+    LIBPAK_FREE(reader->hashmap);
 }
 
 #ifdef __cplusplus

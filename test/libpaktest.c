@@ -1,6 +1,10 @@
 #define LIBPAK_IMPLEMENTATION
 #include <libpak.h>
 
+#include <stddef.h>
+#include <stdio.h>
+#include <stdlib.h>
+
 int main() {
     libpakInit(LIBPAK_INIT_COMPRESSION | LIBPAK_INIT_DECOMPRESSION);
 
@@ -12,29 +16,36 @@ int main() {
 
     assert(libpakEndArchive(&compressor, 22, 0, 0, 100) == 0);
 
-    PakArchive arc = libpakLoadArchive("test.pak");
+    PakReader reader = libpakCreateArchiveReader("test.pak");
 
-    PakItem itemA = libpakReadItemFromArchive(&arc, "a.txt");
-    PakItem itemB = libpakReadItemFromArchive(&arc, "b.txt");
-    PakItem itemC = libpakReadItemFromArchive(&arc, "c.txt");
+    size_t itemASize = libpakGetItemSize(&reader, "a.txt");
+    size_t itemBSize = libpakGetItemSize(&reader, "b.txt");
+    size_t itemCSize = libpakGetItemSize(&reader, "c.txt");
+
+    void *itemA = malloc(itemASize);
+    void *itemB = malloc(itemBSize);
+    void *itemC = malloc(itemCSize);
+    libpakReadItem(&reader, "a.txt", itemA);
+    libpakReadItem(&reader, "b.txt", itemB);
+    libpakReadItem(&reader, "c.txt", itemC);
 
     FILE *fileA = fopen("a_decompressed.txt", "wb");
     FILE *fileB = fopen("b_decompressed.txt", "wb");
     FILE *fileC = fopen("c_decompressed.txt", "wb");
 
-    fwrite(itemA.data, itemA.size, 1, fileA);
-    fwrite(itemB.data, itemB.size, 1, fileB);
-    fwrite(itemC.data, itemC.size, 1, fileC);
+    fwrite(itemA, itemASize, 1, fileA);
+    fwrite(itemB, itemBSize, 1, fileB);
+    fwrite(itemC, itemCSize, 1, fileC);
 
     fclose(fileC);
     fclose(fileB);
     fclose(fileA);
 
-    libpakFreeItem(&itemC);
-    libpakFreeItem(&itemB);
-    libpakFreeItem(&itemA);
+    free(itemC);
+    free(itemB);
+    free(itemA);
 
-    libpakFreeArchive(&arc);
+    libpakDestroyArchiveReader(&reader);
 
     libpakDeinit();
 }
