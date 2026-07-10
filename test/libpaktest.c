@@ -34,7 +34,7 @@ int main() {
     libpakFreeItem(&itemB);
     libpakFreeItem(&itemA);
 
-    libpakUnloadArchive(&arc);
+    libpakFreeArchive(&arc);
 
-    libpakQuit();
+    libpakDeinit();
 }

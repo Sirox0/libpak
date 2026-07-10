@@ -1,3 +1,34 @@
+/*  libpak.h - a simple arhive format with zstd
+    see LICENSE or end of this file for the licensing
+
+    Add the next line before including libpak.h in *one* of your source files to create the implementation:
+    #define LIBPAK_IMPLEMENTATION
+
+    possible define options:
+    // disable runtime assertions in libpak
+    #define LIBPAK_NO_ASSERTIONS
+
+    // provide custom *assert* function to libpak
+    #define LIBPAK_ASSERT my_assert
+
+    // provide custom *malloc* function to libpak
+    #define LIBPAK_MALLOC my_malloc
+
+    // provide custom *free* function to libpak
+    #define LIBPAK_FREE my_free
+
+
+    Pak file structure:
+    PakHeader
+    HashMap
+    zstd dictionary
+    zstd-compressed data
+
+
+    see declarations below for documentation
+    see test/libpaktest.c for an example of the API
+*/
+
 #ifndef LIBPAK_H
 #define LIBPAK_H
 
@@ -15,16 +46,6 @@ extern "C" {
 #include <memory.h>
 #include <assert.h>
 #include <string.h>
-
-
-/*
-    Pak file structure:
-
-    PakHeader
-    HashMap
-    zstd dictionary
-    zstd-compressed data
-*/
 
 
 typedef enum {
@@ -68,31 +89,91 @@ typedef struct {
     void *data;
 } PakItem;
 
+/*!
+    \brief initialize libpak
+    \param[in] flags a bitmask of LibpakInitFlags (must provide one to initialize decompression or compression)
+*/
 void libpakInit(LibpakInitFlags flags);
-void libpakQuit();
+/*!
+    \brief deinitialize libpak
+*/
+void libpakDeinit();
 
-// hashing function used internally
+/*!
+    \brief hashing function used internally by libpak
+    \param[in] key an array of uint8_t of length \p len
+    \param[in] len length of \p key array
+    \return the hash of \p key
+*/
 uint32_t libpakMurmurHash3_32(uint8_t* key, size_t len);
 
-// compress API
+// compression API
+/*!
+    \brief begin creating a pak archive
+    \param[in] path the path where the archive will be saved
+    \param[in] maxFiles maximum number of files added to this archive through libpakAddFileToArchive
+    \return a PakCompressor object, used as an argument for libpakAddFileToArchive and libpakEndArchive
+*/
 PakCompressor libpakBeginArchive(char* path, uint32_t maxFiles);
+/*!
+    \brief add a file to pak archive
+    \param[in] compressor a pointer to PakCompressor object created via libpakBeginArchive
+    \param[in] path the path to the file to add, file paths inside pak archive are capped to 128 characters
+*/
 void libpakAddFileToArchive(PakCompressor *compressor, char path[128]);
+/*!
+    WARNING: \p compressor passed to this function is no longer a valid PakCompressor object,
+        unless a non-zero error code is returned
+    \brief end creating a pak archive
+    \param[in] compressor a pointer to PakCompressor object created via libpakBeginArchive
+    \param[in] zstdCompressionLevel zstd compression level used for the archive,
+        as of writing this documentation, acceptable range is [-7; 22]
+    \param[in] zstdDictSize size in bytes of zstd dictionary for the archive, can be 0 for no dictionary
+    \param[in] zstdDictSampleCount the number of first files added to archive to use for making a dictionary,
+        ignored if \p zstdDictSize is 0
+    \param[in] hashMapSlotCount number of slots in the hashmap of the archive entries,
+        higher numbers can increase the speed of finding the file via libpakReadItemFromArchive,
+        but will also make the hashmap use more memory. hashmap size is always \p hashMapSlotCount * sizeof(PakHashMapEntry)
+    \return an error code, error string will be printed to stderr if non-zero.
+        error codes:
+        0 - no error,
+        1 - insufficient amount of hashmap slots
+*/
 uint32_t libpakEndArchive(PakCompressor *compressor, int32_t zstdCompressionLevel, size_t zstdDictSize, uint64_t zstdDictSampleCount, uint64_t hashMapSlotCount);
 
-// read API
+// reading API
+/*!
+    \brief load a pak archive at path \p path
+    \param[in] path the path to a pak archive to load
+    \return a PakArchive object, used as an argument for libpakReadItemFromArchive and libpakFreeArchive
+*/
 PakArchive libpakLoadArchive(char* path);
+/*!
+    \brief read an item in pak archive \p arc with path \p path
+    \param[in] arc a pointer to PakArchive object created via libpakLoadArchive
+    \return a PakItem object with the data of the requested file in the archive,
+        if an entry with path \p path does not exist in the archive, (PakItem){0, NULL} is returned
+*/
 PakItem libpakReadItemFromArchive(PakArchive *arc, char path[128]);
+/*!
+    \brief free a PakItem object created with libpakReadItemFromArchive
+    \param[in] item the PakItem to free
+*/
 void libpakFreeItem(PakItem *item);
-void libpakUnloadArchive(PakArchive *arc);
+/*!
+    \brief free a PakArchive object created with libpakLoadArchive
+    \param[in] arc the PakArchive to free
+*/
+void libpakFreeArchive(PakArchive *arc);
 
 #ifdef LIBPAK_IMPLEMENTATION
 
-#ifndef LIBPAK_MALLOC
-#define LIBPAK_MALLOC malloc
+#ifndef LIBPAK_ASSERT
+#define LIBPAK_ASSERT assert
 #endif
 
-#ifndef LIBPAK_REALLOC
-#define LIBPAK_REALLOC realloc
+#ifndef LIBPAK_MALLOC
+#define LIBPAK_MALLOC malloc
 #endif
 
 #ifndef LIBPAK_FREE
@@ -158,7 +239,7 @@ void libpakInit(LibpakInitFlags flags) {
     zstdOutputStream = zstdInputStream + zstdInputStreamSize;
 }
 
-void libpakQuit() {
+void libpakDeinit() {
     LIBPAK_FREE(zstdInputStream);
 
     if (zstdDStream != NULL) ZSTD_freeDStream(zstdDStream);
@@ -167,12 +248,12 @@ void libpakQuit() {
 
 PakCompressor libpakBeginArchive(char* path, uint32_t maxFiles) {
     #ifndef LIBPAK_NO_ASSERTIONS
-    assert(zstdCCtx != NULL);
+    LIBPAK_ASSERT(zstdCCtx != NULL);
     #endif
 
     FILE* file = fopen(path, "wb");
     #ifndef LIBPAK_NO_ASSERTIONS
-    assert(file != NULL);
+    LIBPAK_ASSERT(file != NULL);
     #endif
     
     PakCompressor archive = {
@@ -200,7 +281,7 @@ void libpakAddFileToArchive(PakCompressor *compressor, char path[128]) {
 
 uint32_t libpakEndArchive(PakCompressor *compressor, int32_t zstdCompressionLevel, size_t zstdDictSize, uint64_t zstdDictSampleCount, uint64_t hashMapSlotCount) {
     #ifndef LIBPAK_NO_ASSERTIONS
-    assert(compressor->curEntryCount >= zstdDictSampleCount);
+    LIBPAK_ASSERT(compressor->curEntryCount >= zstdDictSampleCount);
     #endif
 
     ZSTD_CCtx_setParameter(zstdCCtx, ZSTD_c_compressionLevel, zstdCompressionLevel);
@@ -228,7 +309,7 @@ uint32_t libpakEndArchive(PakCompressor *compressor, int32_t zstdCompressionLeve
         for (uint64_t i = 0; i < zstdDictSampleCount; i++) {
             files[i] = fopen(compressor->entries[i].path, "rb");
             #ifndef LIBPAK_NO_ASSERTIONS
-            assert(files[i] != NULL);
+            LIBPAK_ASSERT(files[i] != NULL);
             #endif
 
             fseek(files[i], 0, SEEK_END);
@@ -247,7 +328,7 @@ uint32_t libpakEndArchive(PakCompressor *compressor, int32_t zstdCompressionLeve
 
         zstdDictSize = ZDICT_trainFromBuffer(zstdDict, zstdDictSize, sampleFilesContents[0], sampleSizes, zstdDictSampleCount);
         #ifndef LIBPAK_NO_ASSERTIONS
-        assert(!ZSTD_isError(zstdDictSize));
+        LIBPAK_ASSERT(!ZSTD_isError(zstdDictSize));
         #endif
 
         header.zstdDictSize = zstdDictSize;
@@ -287,7 +368,7 @@ uint32_t libpakEndArchive(PakCompressor *compressor, int32_t zstdCompressionLeve
 
                 size_t remaining = ZSTD_compressStream2(zstdCCtx, &out, &in, mode);
                 #ifndef LIBPAK_NO_ASSERTIONS
-                assert(!ZSTD_isError(remaining));
+                LIBPAK_ASSERT(!ZSTD_isError(remaining));
                 #endif
 
                 fwrite(zstdOutputStream, out.pos, 1, compressor->file);
@@ -314,7 +395,7 @@ uint32_t libpakEndArchive(PakCompressor *compressor, int32_t zstdCompressionLeve
 
         FILE *file = fopen(compressor->entries[i].path, "rb");
         #ifndef LIBPAK_NO_ASSERTIONS
-        assert(file != NULL);
+        LIBPAK_ASSERT(file != NULL);
         #endif
 
         while (mode != ZSTD_e_end) {
@@ -338,7 +419,7 @@ uint32_t libpakEndArchive(PakCompressor *compressor, int32_t zstdCompressionLeve
 
                 size_t remaining = ZSTD_compressStream2(zstdCCtx, &out, &in, mode);
                 #ifndef LIBPAK_NO_ASSERTIONS
-                assert(!ZSTD_isError(remaining));
+                LIBPAK_ASSERT(!ZSTD_isError(remaining));
                 #endif
 
                 fwrite(zstdOutputStream, out.pos, 1, compressor->file);
@@ -415,13 +496,13 @@ uint32_t libpakEndArchive(PakCompressor *compressor, int32_t zstdCompressionLeve
 PakArchive libpakLoadArchive(char* path) {
     FILE* file = fopen(path, "rb");
     #ifndef LIBPAK_NO_ASSERTIONS
-    assert(file != NULL);
+    LIBPAK_ASSERT(file != NULL);
     #endif
 
     PakHeader header;
     fread(&header, sizeof(PakHeader), 1, file);
     #ifndef LIBPAK_NO_ASSERTIONS
-    assert(strcmp(header.identifier, "LPAK") == 0);
+    LIBPAK_ASSERT(strcmp(header.identifier, "LPAK") == 0);
     #endif
 
     PakArchive arc = {
@@ -491,7 +572,7 @@ PakItem libpakReadItemFromArchive(PakArchive *arc, char path[128]) {
         while (in.pos != in.size && out.pos != out.size) {
             size_t remaining = ZSTD_decompressStream(zstdDStream, &out, &in);
             #ifndef LIBPAK_NO_ASSERTIONS
-            assert(!ZSTD_isError(remaining));
+            LIBPAK_ASSERT(!ZSTD_isError(remaining));
             #endif
         }
 
@@ -505,7 +586,7 @@ void libpakFreeItem(PakItem *item) {
     LIBPAK_FREE(item->data);
 }
 
-void libpakUnloadArchive(PakArchive *arc) {
+void libpakFreeArchive(PakArchive *arc) {
     ZSTD_freeDDict(arc->zstdDDict);
     LIBPAK_FREE(arc->hashmap);
 }
@@ -516,3 +597,31 @@ void libpakUnloadArchive(PakArchive *arc) {
 
 #endif
 #endif
+
+
+/*
+This is free and unencumbered software released into the public domain.
+
+Anyone is free to copy, modify, publish, use, compile, sell, or
+distribute this software, either in source code form or as a compiled
+binary, for any purpose, commercial or non-commercial, and by any
+means.
+
+In jurisdictions that recognize copyright laws, the author or authors
+of this software dedicate any and all copyright interest in the
+software to the public domain. We make this dedication for the benefit
+of the public at large and to the detriment of our heirs and
+successors. We intend this dedication to be an overt act of
+relinquishment in perpetuity of all present and future rights to this
+software under copyright law.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+IN NO EVENT SHALL THE AUTHORS BE LIABLE FOR ANY CLAIM, DAMAGES OR
+OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
+ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
+OTHER DEALINGS IN THE SOFTWARE.
+
+For more information, please refer to <https://unlicense.org>
+*/
