@@ -67,7 +67,7 @@ typedef struct {
     void *data;
 } PakItem;
 
-void libpakInit(PakInitFlags flags);
+void libpakInit(LibpakInitFlags flags);
 void libpakQuit();
 
 // hashing function used internally
@@ -147,7 +147,7 @@ void *zstdInputStream = NULL;
 size_t zstdOutputStreamSize = 0;
 void *zstdOutputStream = NULL;
 
-void libpakInit(PakInitFlags flags) {
+void libpakInit(LibpakInitFlags flags) {
 
     if (flags & LIBPAK_INIT_COMPRESSION) zstdCCtx = ZSTD_createCCtx();
     if (flags & LIBPAK_INIT_DECOMPRESSION) zstdDStream = ZSTD_createDStream();
