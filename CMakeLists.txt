@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.25)
 project(libpak LANGUAGES C VERSION 1.0)
 
-option(LIBPAK_BUILD_TEST "whether tests for libpak should be compiled" ${PROJECT_IS_TOP_LEVEL})
+option(LIBPAK_BUILD_TEST "whether test for libpak should be compiled" ${PROJECT_IS_TOP_LEVEL})
 
 if(WIN32)
     add_compile_definitions(_CRT_SECURE_NO_DEPRECATE)
