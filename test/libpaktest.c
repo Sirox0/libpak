@@ -6,7 +6,7 @@
 #include <stdlib.h>
 
 int main() {
-    libpakInit(LIBPAK_INIT_COMPRESSION | LIBPAK_INIT_DECOMPRESSION);
+    libpakInit(LIBPAK_INIT_COMPRESSION | LIBPAK_INIT_READING);
 
     PakCompressor compressor = libpakBeginArchive("test.pak", 3);
 

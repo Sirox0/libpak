@@ -50,7 +50,7 @@ extern "C" {
 
 typedef enum {
     LIBPAK_INIT_COMPRESSION = 0b1,
-    LIBPAK_INIT_DECOMPRESSION = 0b10
+    LIBPAK_INIT_READING = 0b10
 } LibpakInitFlags;
 
 typedef struct {
@@ -229,7 +229,7 @@ void *zstdOutputStream = NULL;
 void libpakInit(LibpakInitFlags flags) {
 
     if (flags & LIBPAK_INIT_COMPRESSION) zstdCCtx = ZSTD_createCCtx();
-    if (flags & LIBPAK_INIT_DECOMPRESSION) zstdDStream = ZSTD_createDStream();
+    if (flags & LIBPAK_INIT_READING) zstdDStream = ZSTD_createDStream();
 
     zstdInputStreamSize = ZSTD_CStreamInSize();
     zstdOutputStreamSize = ZSTD_CStreamOutSize();
