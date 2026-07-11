@@ -18,9 +18,9 @@ int main() {
 
     PakReader reader = libpakCreateArchiveReader("test.pak");
 
-    size_t itemASize = libpakGetItemSize(&reader, "a.txt");
-    size_t itemBSize = libpakGetItemSize(&reader, "b.txt");
-    size_t itemCSize = libpakGetItemSize(&reader, "c.txt");
+    uint64_t itemASize = libpakGetItemSize(&reader, "a.txt");
+    uint64_t itemBSize = libpakGetItemSize(&reader, "b.txt");
+    uint64_t itemCSize = libpakGetItemSize(&reader, "c.txt");
 
     void *itemA = malloc(itemASize);
     void *itemB = malloc(itemBSize);
