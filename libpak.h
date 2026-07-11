@@ -260,6 +260,8 @@ PakCompressor libpakBeginArchive(char* path, uint32_t maxFiles) {
         .entries = LIBPAK_MALLOC(sizeof(PakHashMapEntry) * maxFiles)
     };
 
+    memset(archive.entries, 0, sizeof(PakHashMapEntry) * maxFiles);
+
     return archive;
 }
 
@@ -438,6 +440,7 @@ uint32_t libpakEndArchive(PakCompressor *compressor, int32_t zstdCompressionLeve
 
     uint64_t collisionCount = 0;
     for (uint64_t i = 0; i < compressor->curEntryCount; i++) {
+        if (strcmp(compressor->entries[i].path, "") == 0) continue;
         uint32_t hash = libpakMurmurHash3_32((uint8_t*)(compressor->entries[i].path), 128);
         uint32_t slot = hash % hashMapSlotCount;
 
