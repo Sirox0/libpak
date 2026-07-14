@@ -603,10 +603,10 @@ void libpakDestroyArchiveReader(PakReader *reader) {
     LIBPAK_FREE(reader->hashmap);
 }
 
-#ifdef __cplusplus
-}
 #endif
 
+#ifdef __cplusplus
+}
 #endif
 #endif
 
